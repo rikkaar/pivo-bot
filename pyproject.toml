@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "pivobot"
+version = "0.1.0"
+description = "pivoBot for searching pivo"
+authors = ["rikkaar <rikkaaar@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+aiogram = "^3.1.1"
+python-dotenv = "^1.0.0"
+loguru = "^0.7.2"
+motor = "^3.3.1"
+redis = "^5.0.1"
+qrcode = "^7.4.2"
+pydantic-mongo = "^2.0.2"
+opencv-python = "^4.8.1.78"
+opencv-contrib-python = "^4.8.1.78"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
