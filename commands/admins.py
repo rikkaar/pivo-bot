@@ -7,7 +7,7 @@ from .default import get_default_commands
 def get_admins_commands():
     commands = get_default_commands()
     commands.extend([
-        BotCommand(command='/users', description='Получить список пользователей'),
+        # BotCommand(command='/users', description='Получить список пользователей'),
         BotCommand(command='/reports', description='Панель репортов'),
         BotCommand(command='/requests', description='Панель заказов'),
     ])

@@ -130,6 +130,11 @@ async def subscribeToPoint(query: CallbackQuery, callback_data: AddressCallback,
     subBtnText = MessageText.unsubscribe if isSubscribed else MessageText.subscribe
     keyboard = drawaKeyboard(callback_data.addressId, subBtnText, address.lat, address.lon)
 
+    if isSubscribed:
+        await query.answer("Уведомления о новинках включены")
+    else:
+        await query.answer("Уведомления о новинках выключены")
+        
     await query.message.edit_reply_markup(reply_markup=keyboard)
 
 

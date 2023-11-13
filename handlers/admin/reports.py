@@ -4,8 +4,9 @@ from aiogram import F, Router
 from aiogram.filters.callback_data import CallbackData
 from aiogram.filters import Command, CommandObject, CommandStart
 from bson import ObjectId
+from database.models.requests import Request
 from database.services.addresses import AddressesService
-from utils import getDate, logger
+from utils import employeeAccess, getDate, getSkip, getUsername, logger
 from database.services.reports import ReportService, Report
 from database.services.users import UserService
 from filters.status import StatusFilter, UserRole
@@ -15,59 +16,11 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database.models.user import User
 from aiogram.enums.parse_mode import ParseMode
 from loader import bot
-from utils import employeeAccess, getUsername
-from utils import getFiltersText
-from utils.getButtonsText import filterChange
-from utils.getSlice import getSkip
-router = Router()
+import utils
+from utils.getButtonsText import filterChange, getFiltersText
 
 router = Router()
-
-# Получение списка пользовалетей
-
-
-@router.message(Command('users'), StatusFilter(UserRole.ADMIN))
-async def _users(message: Message):
-    text, markup = await _get_users_data()
-    await message.answer(text, reply_markup=markup)
-
-
-# Присвоить пользователю статус работника
-@router.message(Command('hire'), StatusFilter(UserRole.ADMIN))
-async def hire(message: Message, command: CommandObject):
-    if not command.args:
-        return await message.answer(MessageText.notEnougthParams.value + MessageText.hireValidationError.value)
-    commands = command.args.split()
-    if len(commands) != 2:
-        return await message.answer(MessageText.notEnougthParams.value + MessageText.hireValidationError.value)
-    who, where = commands
-    if who.isnumeric():
-        who = await UserService.getUserById(who)
-    else:
-        username = getUsername(who)
-        if not username:
-            return await message.answer(MessageText.usernameValidationError.value)
-        who = await UserService.getUserByUsername(username)
-
-    if not where.isnumeric():
-        return await message.answer("Номер точки также должен быть числом!")
-    if not who:
-        return await message.answer(MessageText.userNotFound.value)
-    user: User = await UserService.update_user(who['id'], status=f"{UserRole.EMPLOYEE} {where}")
-    await message.answer(f'Теперь {user.username} имеет статус {user.status}')
-
-
-@router.message(Command('users'), StatusFilter(UserRole.ADMIN))
-async def nothing(message: Message, **data):
-    # Если мы оказались здесь, то мы либо:
-    # SUPER_ADMIN / ADMIN
-    # EMPLOYEE 1/2/...
-    # Мы имеем доступ к точке 1, если status.split(" ")[1] либо undefined либо равен номеру отображаемой точки. Проверку делает функция employeeAccess
-    user: User = data["user"]
-    if not employeeAccess(user.status, 1):
-        return await message.answer("У вас нет доступа в этой точке")
-    await message.answer("Вы имеете доступ к уровню employee и этой точке")
-
+maxLimit = 5
 
 class ReportActions(str, Enum):
     toggleMenuConcact = 'MC'
@@ -86,7 +39,7 @@ class FilterState(int, Enum):
     true = 2
 
 
-class ReportCallback(CallbackData, prefix="r"):
+class ReportCallback(CallbackData, prefix="rp"):
     action: ReportActions
     contact: FilterState
     fulfilled: FilterState
@@ -122,8 +75,8 @@ def drawReports(reports: List[Report], contact: FilterState = FilterState.all, f
     for i, report in enumerate(reports, start=1):
         report: Report
         emoji = "✅" if report.fulfilled else "❌"
-        username = f"@{report.senderUsername}: " if report.contact else ""
-        formatted_list += f"{i}. {emoji}: {getDate(report.id)}, {report.shortAddress}\n{username}{report.message}\n\n"
+        username = f"@{report.senderUsername}: " if report.contact else "Anon: "
+        formatted_list += f"{i}. {emoji}: {getDate(report.id)}, {report.shortAddress}, {username}\n{report.message}\n\n"
         # Создание кнопки для каждого Report
         keyboard.append(InlineKeyboardButton(text=f"{i}", callback_data=ReportCallback(action=ReportActions.toggleReportFulfilled, contact=contact,
                                                                                        fulfilled=fulfilled, point=point, report=str(report.id), page=page).pack()))
@@ -135,7 +88,7 @@ def drawReports(reports: List[Report], contact: FilterState = FilterState.all, f
     ])
     return formatted_list, keyboard_line
 
-
+    
 def drawFilters(contact: FilterState, fulfilled: FilterState, point: str, page: int = 1, report: str = ""):
     return InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -152,10 +105,11 @@ def drawFilters(contact: FilterState, fulfilled: FilterState, point: str, page: 
         ]
     ])
 
+
 # Это первоначальная настройка. Она базовая и не меняется в дальнейшем
 @router.message(Command("reports"), StatusFilter(UserRole.ADMIN))
 async def showReports(message: Message, **data):
-    reports = await ReportService.get_reports_page(limit=maxLimit, skip=getSkip(1, maxLimit))
+    reports = await ReportService.get_reports_page(limit=maxLimit, skip=utils.getSkip(1, maxLimit))
     list, keyboard = drawReports(reports=reports)
 
     await message.answer(text=list, reply_markup=keyboard)
@@ -234,19 +188,3 @@ async def showMenuFilters(query: CallbackQuery, callback_data: ReportCallback, *
     builder.row(*buttons, width=5)
 
     await query.message.edit_text(text=text, reply_markup=builder.as_markup(), parse_mode=ParseMode.HTML)
-
-
-
-async def _get_users_data():
-    users = await UserService.get_users()
-    if not users:
-        return 'Users is empty', None
-    text = ''
-    for user in users:
-        text += f'\n{"--" * 15}'
-        for key, value in user.model_dump().items():
-            if key == 'username' and value:
-                text += f'\n|{key}: <tg-spoiler><b>@{value}</b></tg-spoiler>'
-            else:
-                text += f'\n|{key}: <b>{value}</b>'
-    return text, None

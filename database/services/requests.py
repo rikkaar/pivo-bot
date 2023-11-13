@@ -1,9 +1,14 @@
+from enum import Enum
 from typing import List
 from pymongo import ReturnDocument
 from bson import ObjectId
 from utils import logger
 from ..models import Request, requests_collection
 
+class FilterState(int, Enum):
+    false = 0
+    all = 1
+    true = 2
 
 class RequestService:
     @staticmethod
@@ -28,6 +33,25 @@ class RequestService:
 
         requests_data = requests_collection.find(query)
         return [Request(**r) async for r in requests_data]
+    
+    @staticmethod
+    async def get_requests_page(limit: int, skip=int, address_id: str = None, contact: FilterState = FilterState.all, fulfilled: FilterState = FilterState.all) -> List[Request]:
+        query = {}
+        if contact == FilterState.true:
+            query['contact'] = True
+        elif contact == FilterState.false:
+            query['contact'] = False
+
+        if fulfilled == FilterState.true:
+            query['fulfilled'] = True
+        elif fulfilled == FilterState.false:
+            query['fulfilled'] = False
+
+        if address_id:
+            query['address'] = ObjectId(address_id)
+
+        requests = requests_collection.find(query).sort({"_id": -1}).skip(skip).limit(limit)
+        return [Request(**r) async for r in requests]
 
     @staticmethod
     async def create_request(address_id: str, shortAddress: str, sender: int, senderUsername: str, name: str, link: str, contact: bool) -> Request:
